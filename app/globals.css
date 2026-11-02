@@ -1469,6 +1469,339 @@ table.takes {
   margin-top: 6px;
 }
 
+/* Workspace: left summary, middle session, right settings */
+
+.app.app-wide {
+  max-width: 1480px;
+}
+
+.workspace {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: 300px minmax(0, 1fr) 330px;
+  grid-template-areas: "left main right";
+}
+
+.workspace.panel-closed {
+  grid-template-columns: 300px minmax(0, 1fr) 48px;
+}
+
+.col-left {
+  grid-area: left;
+  min-width: 0;
+}
+
+.col-main {
+  grid-area: main;
+  min-width: 0;
+}
+
+.col-right {
+  grid-area: right;
+  min-width: 0;
+  position: sticky;
+  top: 12px;
+}
+
+/* Left sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.side-card {
+  padding: 16px;
+}
+
+.side-card h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.side-card .section-head {
+  margin-bottom: 10px;
+}
+
+.side-card .calendar {
+  margin-top: 0;
+}
+
+.side-note {
+  margin: 8px 0 0;
+}
+
+.mini-tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mini-tiles .tile {
+  padding: 8px 10px;
+  border-top-width: 1px;
+}
+
+.mini-tiles .tile-label {
+  font-size: 0.68rem;
+}
+
+.mini-tiles .tile-value {
+  font-size: 1.1rem;
+  font-variant-numeric: normal;
+}
+
+.mini-tiles .tile-sub {
+  font-size: 0.75rem;
+}
+
+.side-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.side-history li + li {
+  border-top: 1px solid var(--border);
+}
+
+.side-take {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.side-take:hover,
+.side-take:focus-visible {
+  background: var(--accent-soft);
+}
+
+.side-take-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Middle: start card */
+
+.hero {
+  text-align: center;
+  padding: 40px 28px;
+}
+
+.hero h1 {
+  font-size: 1.9rem;
+}
+
+.setup-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 18px 0 4px;
+}
+
+.hero .queued {
+  text-align: left;
+  max-width: 520px;
+  margin: 18px auto 0;
+}
+
+.hero-start {
+  display: flex;
+  width: 100%;
+  max-width: 420px;
+  margin: 24px auto 0;
+  padding: 16px 20px;
+  font-size: 1.15rem;
+  border-radius: 14px;
+}
+
+.hero-start:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.hero-focus {
+  max-width: 520px;
+  margin: 22px auto 0;
+  text-align: left;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+/* Right: settings panel */
+
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-head h2 {
+  margin: 0;
+}
+
+.settings-note {
+  margin: 6px 0 0;
+}
+
+.settings-group {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.settings-group h3 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0;
+}
+
+.settings-group fieldset {
+  margin-top: 10px;
+}
+
+.settings-group .toggle {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.settings-group .chip {
+  padding: 5px 11px;
+  font-size: 0.85rem;
+}
+
+.settings-panel.collapsed {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.rail-button {
+  font: inherit;
+  width: 48px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+
+.rail-button:hover {
+  border-color: var(--accent);
+}
+
+.rail-label {
+  writing-mode: vertical-rl;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.settings-backdrop {
+  display: none;
+}
+
+.settings-toggle {
+  padding: 4px 10px;
+  font-size: 1.05rem;
+}
+
+@media (min-width: 1100px) {
+  /* The rail and the column do the job here. */
+  .settings-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1099px) {
+  .workspace,
+  .workspace.panel-closed {
+    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-areas: "left main";
+  }
+
+  .col-right {
+    position: static;
+  }
+
+  /* Settings become a drawer over the page. */
+  .settings-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(380px, 92vw);
+    max-height: none;
+    border-radius: 0;
+    z-index: 51;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .settings-panel.collapsed {
+    display: none;
+  }
+
+  .settings-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 50;
+  }
+}
+
+@media (max-width: 759px) {
+  .workspace,
+  .workspace.panel-closed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "main"
+      "left";
+  }
+
+  .hero {
+    padding: 28px 18px;
+  }
+
+  .hero h1 {
+    font-size: 1.5rem;
+  }
+}
+
 @media (max-width: 520px) {
   .hide-narrow {
     display: none;

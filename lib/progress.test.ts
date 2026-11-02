@@ -61,13 +61,14 @@ describe("weeklyReview", () => {
 });
 
 describe("focusFor", () => {
-  const base = { takes: 5, minutes: 5, wpm: 145, fillersPerMin: 1, startDelay: 1, score: 8 };
+  const base = { takes: 5, minutes: 5, wpm: 145, fillersPerMin: 1, startDelay: 1, score: 8, eyeContact: 0.8 };
   it.each([
     [{ takes: 0 }, "Get started"],
     [{ fillersPerMin: 5 }, "Cut the fillers"],
     [{ wpm: 100 }, "Pick up the pace"],
     [{ wpm: 190 }, "Slow down"],
     [{ startDelay: 5 }, "Start faster"],
+    [{ eyeContact: 0.3 }, "Look at the lens"],
     [{ score: 5 }, "Structure your answers"],
     [{}, "Level up"],
   ])("%o -> %s", (patch, title) => {

@@ -3,19 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PracticeCalendar, TrendChart, shortDate } from "@/components/charts";
 import TakeDetail from "@/components/TakeDetail";
+import { FocusBox, PACE_TARGET, WeeklyTiles } from "@/components/WeeklySummary";
 import { deleteSession, type Session } from "@/lib/history";
 import {
   bestStreak,
   practiceCalendar,
   trendPoints,
   weeklyReview,
-  type PeriodSummary,
 } from "@/lib/progress";
 import { MODES, type Mode, type Prompt } from "@/lib/prompts";
 import { deleteTake, listRecordings, type RecordingInfo } from "@/lib/takeStore";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PACE_TARGET: [number, number] = [130, 160];
 const PAGE = 25;
 
 const RANGES = [
@@ -24,46 +23,6 @@ const RANGES = [
   { id: "all", label: "All time", days: Infinity },
 ] as const;
 type RangeId = (typeof RANGES)[number]["id"];
-
-type Better = "up" | "down" | "target";
-
-const TILES: {
-  key: keyof PeriodSummary;
-  label: string;
-  format: (n: number) => string;
-  deltaFormat?: (n: number) => string;
-  better: Better;
-}[] = [
-  { key: "takes", label: "Takes", format: (n) => String(n), better: "up" },
-  { key: "minutes", label: "Minutes spoken", format: (n) => n.toFixed(n < 10 ? 1 : 0), better: "up" },
-  { key: "wpm", label: "Pace", format: (n) => `${Math.round(n)} wpm`, better: "target" },
-  { key: "fillersPerMin", label: "Fillers per minute", format: (n) => n.toFixed(1), better: "down" },
-  { key: "startDelay", label: "First word", format: (n) => `${n.toFixed(1)}s`, better: "down" },
-  { key: "score", label: "Coach score", format: (n) => `${n.toFixed(1)}/10`, deltaFormat: (n) => n.toFixed(1), better: "up" },
-];
-
-const paceMiss = (wpm: number) => Math.max(0, PACE_TARGET[0] - wpm, wpm - PACE_TARGET[1]);
-
-function Delta({ cur, prev, tile }: { cur: number | null; prev: number | null; tile: (typeof TILES)[number] }) {
-  if (cur === null) return <span className="muted">No data this week</span>;
-  if (prev === null) return <span className="muted">Nothing to compare yet</span>;
-  const diff = cur - prev;
-  const fmt = tile.deltaFormat ?? tile.format;
-  if (tile.better === "target" && paceMiss(cur) === 0 && paceMiss(prev) === 0) {
-    return <span className="muted">In the target range both weeks</span>;
-  }
-  // Compare at display precision so a change that rounds to zero reads as "same".
-  if (fmt(Math.abs(diff)) === fmt(0) || (tile.better === "target" && paceMiss(cur) === paceMiss(prev))) {
-    return <span className="muted">Same as the week before</span>;
-  }
-  const improved =
-    tile.better === "up" ? diff > 0 : tile.better === "down" ? diff < 0 : paceMiss(cur) < paceMiss(prev);
-  return (
-    <span className={improved ? "delta-good" : "delta-bad"}>
-      {diff > 0 ? "▲" : "▼"} {fmt(Math.abs(diff))} · {improved ? "better" : "worse"}
-    </span>
-  );
-}
 
 interface Props {
   history: Session[];
@@ -120,8 +79,6 @@ export default function Progress({ history, onHistory, onPractise, onGoPractice,
     );
   }
 
-  const { current, previous } = review;
-
   return (
     <div className="progress-page">
       <section className="card">
@@ -131,25 +88,8 @@ export default function Progress({ history, onHistory, onPractise, onGoPractice,
             Active {review.activeDays} of 7 days · best streak {best} day{best === 1 ? "" : "s"}
           </span>
         </div>
-        <div className="tiles review-tiles">
-          {TILES.map((tile) => {
-            const cur = current[tile.key];
-            return (
-              <div key={tile.key} className="tile">
-                <div className="tile-label">{tile.label}</div>
-                <div className="tile-value">{cur === null ? "—" : tile.format(cur)}</div>
-                <div className="tile-sub">
-                  <Delta cur={cur} prev={previous[tile.key]} tile={tile} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="focus">
-          <div className="small muted">Focus for the next 7 days</div>
-          <div className="focus-title">{review.focus.title}</div>
-          <p>{review.focus.detail}</p>
-        </div>
+        <WeeklyTiles review={review} />
+        <FocusBox review={review} />
       </section>
 
       <section className="card">

@@ -9,6 +9,8 @@ export interface PeriodSummary {
   fillersPerMin: number | null;
   startDelay: number | null;
   score: number | null;
+  /** Share of the time looking at the camera (0–1), from face tracking. */
+  eyeContact: number | null;
 }
 
 export interface Focus {
@@ -51,6 +53,7 @@ export function summarize(sessions: Session[]): PeriodSummary {
     fillersPerMin: mean(sessions.map((s) => s.fillersPerMin)),
     startDelay: mean(sessions.map((s) => s.startDelay)),
     score: mean(sessions.map((s) => s.score)),
+    eyeContact: mean(sessions.map((s) => s.eyeContactShare)),
   };
 }
 
@@ -88,6 +91,12 @@ export function focusFor(s: PeriodSummary, activeDays: number): Focus {
     return {
       title: "Start faster",
       detail: `It took you ${s.startDelay.toFixed(1)}s on average to start speaking. Set thinking time to 15s or none, and have a go-to opening line ready.`,
+    };
+  }
+  if (s.eyeContact !== null && s.eyeContact < 0.5) {
+    return {
+      title: "Look at the lens",
+      detail: `You looked at the camera ${Math.round(s.eyeContact * 100)}% of the time. Put a sticker next to the lens as a reminder, and look back at it after every glance away.`,
     };
   }
   if (s.score !== null && s.score < 6) {

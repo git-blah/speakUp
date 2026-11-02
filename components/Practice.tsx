@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { CoachPanel, OnePagerPanel, type Async } from "@/components/Coach";
 import Feedback, { type Analysis } from "@/components/Feedback";
 import { analyze, tips as tipsFor } from "@/lib/analysis";
-import { cacheOnePager, cachedOnePager, fetchProviders, requestFeedback, requestOnePager } from "@/lib/coach/client";
+import { cacheOnePager, cachedOnePager, requestFeedback, requestOnePager } from "@/lib/coach/client";
+import { coachModelFor, resolveCoach } from "@/lib/coach/resolve";
+import { weeklyReview } from "@/lib/progress";
 import { SCORE_KEYS, type CoachFeedback, type FeedbackRequest, type OnePager, type ProviderInfo } from "@/lib/coach/types";
 import { saveSession, updateSession, type Session } from "@/lib/history";
-import { DIFFICULTY_LABELS, MODES, pickPrompt, type Mode, type Prompt } from "@/lib/prompts";
-import { KEEP_OPTIONS, LANGUAGES, PREP_OPTIONS, SPEAK_OPTIONS, formatSeconds, type Settings } from "@/lib/settings";
+import { DIFFICULTY_LABELS, MODES, pickPrompt, type Prompt } from "@/lib/prompts";
+import { formatSeconds, type Settings } from "@/lib/settings";
 import { pruneRecordings, requestPersistentStorage, saveDetail, saveRecording } from "@/lib/takeStore";
-import { serverTranscriptionAvailable, transcribeOnServer } from "@/lib/transcribe";
+import { transcribeOnServer } from "@/lib/transcribe";
 import type { Transcript } from "@/lib/transcript";
 import VideoFeedback from "@/components/VideoFeedback";
 import { useFrameSampler } from "@/lib/useFrameSampler";
@@ -32,11 +34,6 @@ interface Take {
 /** Words needed before AI coaching is worth asking for. */
 const MIN_COACH_WORDS = 15;
 
-function resolveCoach(settings: Settings, providers: ProviderInfo[]): ProviderInfo | null {
-  if (settings.coach === "off") return null;
-  const available = providers.filter((p) => p.available);
-  return available.find((p) => p.id === settings.coach) ?? available[0] ?? null;
-}
 
 const SELF_CHECK = [
   "I had a clear opening line",
@@ -57,7 +54,9 @@ interface PracticeProps {
   /** A prompt chosen elsewhere (e.g. "practise again" in Progress) to use for the next reveal. */
   queued: Prompt | null;
   onQueuedTaken: () => void;
-  onOpenProgress: () => void;
+  onOpenSettings: () => void;
+  providers: ProviderInfo[];
+  serverStt: boolean;
 }
 
 export default function Practice({
@@ -68,7 +67,9 @@ export default function Practice({
   onActiveChange,
   queued,
   onQueuedTaken,
-  onOpenProgress,
+  onOpenSettings,
+  providers,
+  serverStt,
 }: PracticeProps) {
   const [phase, setPhase] = useState<Phase>("setup");
   const [prompt, setPrompt] = useState<Prompt | null>(null);
@@ -78,8 +79,6 @@ export default function Practice({
   const [checked, setChecked] = useState<boolean[]>([]);
   const [busy, setBusy] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [serverStt, setServerStt] = useState(false);
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [coach, setCoach] = useState<Async<CoachFeedback> | null>(null);
   const [onePager, setOnePager] = useState<Async<OnePager> | null>(null);
   const coachRequestRef = useRef<{ at: string; req: FeedbackRequest } | null>(null);
@@ -99,19 +98,12 @@ export default function Practice({
   const takeIdRef = useRef(0);
 
   useEffect(() => {
-    void serverTranscriptionAvailable().then(setServerStt);
-    void fetchProviders().then(setProviders);
-  }, []);
-
-  useEffect(() => {
     onActiveChange(phase !== "setup");
   }, [phase, onActiveChange]);
 
   const coachProvider = resolveCoach(settings, providers);
-  const coachModel =
-    coachProvider?.id === "ollama" && coachProvider.models?.includes(settings.ollamaModel)
-      ? settings.ollamaModel
-      : coachProvider?.model;
+  const coachModel = coachModelFor(settings, coachProvider);
+  const focus = weeklyReview(history).focus;
   const coachSource = coachProvider ? `${coachProvider.label} · ${coachModel}` : "";
 
   useEffect(() => {
@@ -125,13 +117,6 @@ export default function Practice({
     };
   }, [take]);
 
-  function toggleMode(mode: Mode) {
-    const has = settings.modes.includes(mode);
-    if (has && settings.modes.length === 1) return; // keep at least one
-    updateSettings({
-      modes: has ? settings.modes.filter((m) => m !== mode) : [...settings.modes, mode],
-    });
-  }
 
   async function startSession() {
     setBusy(true);
@@ -437,185 +422,31 @@ export default function Practice({
       )}
 
       {phase === "setup" && (
-        <section className="card">
-          <h1>Practise speaking on the spot</h1>
+        <section className="card hero">
+          <h1>Ready to practise?</h1>
           <p className="muted">
-            You get a random prompt, a short time to think, and then you speak to the camera until
-            the timer runs out. Watch the recording back and repeat.
+            You&apos;ll get a random prompt,{" "}
+            {settings.prepSeconds > 0 ? `${formatSeconds(settings.prepSeconds)} to think` : "no thinking time"}, then{" "}
+            {formatSeconds(settings.speakSeconds)} to speak to the camera.
           </p>
 
-          <fieldset>
-            <legend>Prompt types</legend>
-            <div className="chips">
-              {(Object.keys(MODES) as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  className={`chip ${settings.modes.includes(m) ? "on" : ""}`}
-                  aria-pressed={settings.modes.includes(m)}
-                  onClick={() => toggleMode(m)}
-                >
-                  {MODES[m].label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Difficulty</legend>
-            <div className="chips">
-              {(["any", 1, 2, 3] as const).map((d) => (
-                <button
-                  key={d}
-                  className={`chip ${settings.difficulty === d ? "on" : ""}`}
-                  aria-pressed={settings.difficulty === d}
-                  onClick={() => updateSettings({ difficulty: d })}
-                >
-                  {d === "any" ? "Mixed" : DIFFICULTY_LABELS[d]}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="row">
-            <fieldset>
-              <legend>Thinking time</legend>
-              <div className="chips">
-                {PREP_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    className={`chip ${settings.prepSeconds === s ? "on" : ""}`}
-                    aria-pressed={settings.prepSeconds === s}
-                    onClick={() => updateSettings({ prepSeconds: s })}
-                  >
-                    {s === 0 ? "None" : formatSeconds(s)}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Speaking time</legend>
-              <div className="chips">
-                {SPEAK_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    className={`chip ${settings.speakSeconds === s ? "on" : ""}`}
-                    aria-pressed={settings.speakSeconds === s}
-                    onClick={() => updateSettings({ speakSeconds: s })}
-                  >
-                    {formatSeconds(s)}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+          <div className="setup-summary" aria-label="Current settings">
+            <span className="tag subtle">
+              {settings.modes.length === Object.keys(MODES).length
+                ? "All prompt types"
+                : settings.modes.map((m) => MODES[m].label).join(", ")}
+            </span>
+            <span className="tag subtle">
+              {settings.difficulty === "any" ? "Mixed difficulty" : DIFFICULTY_LABELS[settings.difficulty]}
+            </span>
+            <span className="tag subtle">
+              {settings.camera ? (settings.faceTracking ? "Video + face tracking" : "Video") : "Audio only"}
+            </span>
+            <span className="tag subtle">{coachProvider ? `Coach: ${coachProvider.label}` : "No AI coach"}</span>
+            <button className="link small" onClick={onOpenSettings}>
+              Change
+            </button>
           </div>
-
-          <fieldset>
-            <legend>Your English</legend>
-            <div className="chips">
-              {LANGUAGES.map((l) => (
-                <button
-                  key={l.code}
-                  className={`chip ${settings.language === l.code ? "on" : ""}`}
-                  aria-pressed={settings.language === l.code}
-                  onClick={() => updateSettings({ language: l.code })}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-            <p className="muted small hint">
-              Pick the accent closest to yours for a more accurate transcript.{" "}
-              {serverStt
-                ? "Transcripts come from Deepgram."
-                : "Transcripts come from your browser's speech recognition."}
-            </p>
-          </fieldset>
-
-          <fieldset>
-            <legend>AI coach</legend>
-            <div className="chips">
-              {providers.map((p) => (
-                <button
-                  key={p.id}
-                  className={`chip ${coachProvider?.id === p.id ? "on" : ""}`}
-                  aria-pressed={coachProvider?.id === p.id}
-                  disabled={!p.available}
-                  title={p.reason}
-                  onClick={() => updateSettings({ coach: p.id })}
-                >
-                  {p.label}
-                </button>
-              ))}
-              <button
-                className={`chip ${settings.coach === "off" ? "on" : ""}`}
-                aria-pressed={settings.coach === "off"}
-                onClick={() => updateSettings({ coach: "off" })}
-              >
-                Off
-              </button>
-            </div>
-            {coachProvider?.id === "ollama" && (coachProvider.models?.length ?? 0) > 1 && (
-              <label className="model-select small">
-                Model
-                <select
-                  value={coachModel}
-                  onChange={(e) => updateSettings({ ollamaModel: e.target.value })}
-                >
-                  {coachProvider.models?.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <p className="muted small hint">
-              {coachProvider
-                ? `After each take, ${coachProvider.label} (${coachModel})${coachProvider.id === "ollama" ? ", running on your computer," : ""} gives feedback and can write a one-pager on the topic.`
-                : settings.coach === "off"
-                  ? "AI coaching is off."
-                  : "Add an ANTHROPIC_API_KEY or run Ollama locally to get AI feedback and one-pagers (see README)."}
-            </p>
-          </fieldset>
-
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={settings.camera}
-              onChange={(e) => updateSettings({ camera: e.target.checked })}
-            />
-            Record video (turn off for audio only)
-          </label>
-          {settings.camera && (
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.faceTracking}
-                onChange={(e) => updateSettings({ faceTracking: e.target.checked })}
-              />
-              Check framing and eye contact (face tracking runs in your browser; downloads a ~4 MB model once)
-            </label>
-          )}
-
-          <fieldset>
-            <legend>Save recordings</legend>
-            <div className="chips">
-              {KEEP_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  className={`chip ${settings.keepRecordings === n ? "on" : ""}`}
-                  aria-pressed={settings.keepRecordings === n}
-                  onClick={() => updateSettings({ keepRecordings: n })}
-                >
-                  {n === 0 ? "Off" : `Last ${n}`}
-                </button>
-              ))}
-            </div>
-            <p className="muted small hint">
-              Kept only in this browser, so you can watch old takes in Progress. A one-minute video is
-              roughly 5–15 MB.
-            </p>
-          </fieldset>
 
           {queued && (
             <div className="queued">
@@ -627,34 +458,14 @@ export default function Practice({
             </div>
           )}
 
-          <button className="primary big" onClick={startSession} disabled={busy}>
-            {busy ? "Starting camera…" : "Start session"}
+          <button className="primary hero-start" onClick={startSession} disabled={busy}>
+            {busy ? "Starting camera…" : queued ? "▶ Start session with this prompt" : "▶ Start new session"}
           </button>
 
           {history.length > 0 && (
-            <div className="history">
-              <div className="history-head">
-                <h2>Recent takes</h2>
-                <button className="link" onClick={onOpenProgress}>
-                  See your progress →
-                </button>
-              </div>
-              <ul>
-                {history.slice(0, 5).map((s) => (
-                  <li key={s.at}>
-                    <span className="tag">{MODES[s.mode].label}</span>
-                    <span className="history-text">{s.promptText}</span>
-                    {s.wpm != null && <span className="muted">{s.wpm} wpm</span>}
-                    {s.fillersPerMin != null && (
-                      <span className="muted" title="Fillers per minute">
-                        {s.fillersPerMin} f/m
-                      </span>
-                    )}
-                    <span className="muted">{formatSeconds(s.seconds)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <p className="hero-focus small">
+              <span className="muted">This week&apos;s focus:</span> <strong>{focus.title}.</strong> {focus.detail}
+            </p>
           )}
         </section>
       )}

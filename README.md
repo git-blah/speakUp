@@ -13,9 +13,17 @@ npm run dev
 
 Open http://localhost:3000 and allow camera and microphone access. Optional features are switched on with keys in `.env.local`. Copy `.env.example` to get started. Browsers only allow camera access on `localhost` or over HTTPS. To use it on your phone, deploy it (for example on Vercel) rather than opening your laptop's IP address.
 
+## The Practice screen
+
+- **Left:** your last 7 days compared with the week before (takes, minutes, pace, fillers, first word, eye contact, coach score), a consistency calendar with your streak, and your recent takes. Click a take to rewatch it and see its feedback.
+- **Middle:** a summary of your current setup and a big **Start new session** button, plus this week's focus. During a session, the camera, countdown and feedback appear here.
+- **Right:** every setting in one collapsible panel: prompt types, difficulty, timing, your English, AI coach, camera, face tracking and saved recordings. Collapse it to a slim rail with ✕; the app remembers your choice.
+
+On tablets and phones the columns stack (the session first) and settings open as a drawer from the ⚙ button in the header.
+
 ## How a session works
 
-1. **Setup:** pick prompt types, difficulty, thinking time (0–60s) and speaking time (30s–3min).
+1. **Setup:** pick prompt types, difficulty, thinking time (0–60s) and speaking time (30s–3min) in the settings panel.
 2. **Ready:** the camera preview is on. The prompt stays hidden until you press *Reveal prompt*, and that's when the thinking clock starts.
 3. **Think:** a countdown runs over the preview. You can start early or skip to a different prompt.
 4. **Speak:** recording starts automatically and stops when time runs out. You can also press *Stop*.
@@ -46,7 +54,7 @@ These are rough measures, and hand gestures count as movement too. The threshold
 
 ### Face tracking (framing and eye contact)
 
-Face tracking uses Google's [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker), running entirely in your browser (WebAssembly, with the GPU if available). It's on by default; switch it off on the setup screen with *Check framing and eye contact*.
+Face tracking uses Google's [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker), running entirely in your browser (WebAssembly, with the GPU if available). It's on by default; switch it off in the settings panel with *Check framing and eye contact*.
 
 - **Framing** comes from the face's position and size in the frame. The advice accounts for the mirrored preview, so "move to your left" means your left as you see yourself.
 - **Eye contact** combines head direction (from the model's 3D head pose) with eye direction (its gaze scores). Head tilt is judged against your own upright pose during the take, because a laptop camera below eye level makes everyone look slightly down. Only glances below that count as looking down.
@@ -87,7 +95,7 @@ Everything stays in your browser. Nothing is stored on a server.
 
 - **Take history** (prompt, date, length, stats, coach score) is in `localStorage`, up to 1,000 takes.
 - **Transcripts, tips and AI feedback** for each take are in IndexedDB.
-- **Recordings** are in IndexedDB too, if *Save recordings* is on (setup screen: Off / last 10 / 30 / 100; default is the last 10). Older ones are deleted automatically. A one-minute video is roughly 5–15 MB.
+- **Recordings** are in IndexedDB too, if *Save recordings* is on (settings panel: Off / last 10 / 30 / 100; default is the last 10). Older ones are deleted automatically. A one-minute video is roughly 5–15 MB.
 
 Clearing your browser's site data deletes all of this, and it doesn't sync between devices or browsers. Download any recording you want to keep for good.
 
@@ -112,13 +120,13 @@ To use Deepgram, create a key at https://console.deepgram.com and add it to `.en
 DEEPGRAM_API_KEY=your_key_here
 ```
 
-Restart `npm run dev`. The setup screen will say "Transcripts come from Deepgram". Only a small audio-only copy of each take (about 0.4 MB/min) is uploaded, never the video. That also keeps uploads under the 4.5 MB request limit on Vercel.
+Restart `npm run dev`. The settings panel will say "Transcripts come from Deepgram". Only a small audio-only copy of each take (about 0.4 MB/min) is uploaded, never the video. That also keeps uploads under the 4.5 MB request limit on Vercel.
 
 Known limitation: on Android Chrome, browser speech recognition can conflict with the camera's microphone. Use Deepgram there.
 
 ## AI coach: Claude or a local model
 
-Pick the coach on the setup screen: **Claude**, **Ollama** or **Off**. Providers that aren't configured are greyed out.
+Pick the coach in the settings panel: **Claude**, **Ollama** or **Off**. Providers that aren't configured are greyed out.
 
 ### Claude
 
@@ -154,7 +162,10 @@ Notes:
 
 ```
 app/                 Next.js App Router entry (layout, page, global styles)
-components/Practice.tsx  The whole practice flow (setup → ready → prep → speaking → review)
+components/Practice.tsx  The practice flow (start card → ready → prep → speaking → review)
+components/Sidebar.tsx   Left column: weekly summary, consistency calendar, recent takes
+components/SettingsPanel.tsx  Right column: all settings (collapsible rail / drawer)
+components/WeeklySummary.tsx  Last-7-days tiles and focus, shared by the sidebar and Progress
 components/Feedback.tsx  Stats tiles, tips and highlighted transcript
 app/api/transcribe/  Server route that forwards audio to Deepgram (needs DEEPGRAM_API_KEY)
 lib/prompts.ts       Prompt library (~100 prompts across 5 modes × 3 difficulties) + picker
