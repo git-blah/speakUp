@@ -11,6 +11,7 @@ interface DeepgramWord {
   punctuated_word?: string;
   start: number;
   end: number;
+  confidence?: number;
 }
 
 /** Lets the client know whether server transcription is configured. */
@@ -69,6 +70,7 @@ export async function POST(req: Request) {
     text: alt?.transcript ?? "",
     words: ((alt?.words ?? []) as DeepgramWord[]).map((w) => ({
       text: w.punctuated_word ?? w.word,
+      confidence: w.confidence,
       start: w.start,
       end: w.end,
     })),

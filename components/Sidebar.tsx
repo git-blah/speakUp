@@ -81,6 +81,7 @@ export default function Sidebar({ history, onHistory, onPractise, onOpenProgress
                     {shortDate(Date.parse(s.at))} · {MODES[s.mode].label} · {formatSeconds(s.seconds)}
                     {s.wpm != null && ` · ${s.wpm} wpm`}
                     {s.eyeContactShare != null && ` · ${Math.round(s.eyeContactShare * 100)}% eye contact`}
+                    {s.assessmentScore != null && ` · assessed ${s.assessmentScore}/10`}
                   </span>
                 </button>
               </li>

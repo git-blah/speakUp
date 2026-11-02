@@ -27,6 +27,8 @@ export interface Session {
   /** Share of the time (with a face in view) spent looking at the camera (0–1). */
   eyeContactShare?: number;
   framing?: Framing;
+  /** Overall speaking score (0–10) from the full assessment profile. */
+  assessmentScore?: number;
 }
 
 const KEY = "speak-up:history";

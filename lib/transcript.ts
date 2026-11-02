@@ -3,6 +3,8 @@ export interface Word {
   /** Seconds from the start of the take. Only present for timed transcripts. */
   start?: number;
   end?: number;
+  /** Recognizer confidence 0–1 (Deepgram only). */
+  confidence?: number;
 }
 
 export interface Transcript {
@@ -18,7 +20,7 @@ export interface Transcript {
 /** Shape returned by POST /api/transcribe. */
 export interface TranscribeResponse {
   text: string;
-  words: Required<Word>[];
+  words: { text: string; start: number; end: number; confidence?: number }[];
 }
 
 export function wordsFromText(text: string): Word[] {

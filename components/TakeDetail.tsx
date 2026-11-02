@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CoachPanel } from "@/components/Coach";
 import Feedback from "@/components/Feedback";
 import VideoFeedback from "@/components/VideoFeedback";
+import AssessmentPanel from "@/components/AssessmentPanel";
 import { analyze, tips as tipsFor } from "@/lib/analysis";
 import type { Session } from "@/lib/history";
 import { DIFFICULTY_LABELS, MODES, type Prompt } from "@/lib/prompts";
@@ -122,6 +123,10 @@ export default function TakeDetail({ take, onClose, onPractise, onDelete, onReco
       )}
 
       {detail?.video && <VideoFeedback stats={detail.video} face={detail.face} onSeek={media ? seek : undefined} />}
+
+      {detail?.assessment && (
+        <AssessmentPanel state={{ status: "done", data: detail.assessment }} onRetry={() => {}} />
+      )}
 
       {detail?.feedback && (
         <CoachPanel

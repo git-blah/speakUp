@@ -17,6 +17,8 @@ export interface Settings {
   keepRecordings: number;
   /** Track the face (MediaPipe, in the browser) for framing and eye contact. */
   faceTracking: boolean;
+  /** Feedback after each take: quick coaching, or the 50-metric full assessment. */
+  analysisProfile: "quick" | "full";
 }
 
 /** English variants supported by both browser speech recognition and Deepgram nova-3. */
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaModel: "",
   keepRecordings: 10,
   faceTracking: true,
+  analysisProfile: "quick",
 };
 
 export const PREP_OPTIONS = [0, 15, 30, 60];

@@ -80,6 +80,44 @@ With an AI coach turned on (Claude or a local Ollama model), you also get:
 - **A follow-up question** from an imaginary audience member. Press *Answer it now* to make it your next prompt, for quick-thinking practice.
 - **A one-pager** on the topic (key points, perspectives, vocabulary with examples, an answer outline and strong openers) that you can print or save as a PDF.
 
+## Analysis profiles
+
+Choose in the settings panel under **Analysis profile**:
+
+- **Quick coach** (default): the feedback above, ready in seconds.
+- **Full assessment**: a 50-metric report. Each metric gets a score from 0 to 10 (or **N/A** when there isn't enough evidence), the evidence behind it, and the single most important improvement. The report ends with overall scores for language correctness, fluency and delivery, coherence and structure, communication effectiveness and overall speaking, then the top 5 weaknesses (ranked), the top 5 strengths and three exercises. Download it as Markdown with **Download report (.md)**. Saved reports reopen from your history.
+
+### How the 50 metrics are scored
+
+Every metric is labelled with its source, so objective measurements are never mixed up with opinion:
+
+| Source | Count | Examples | Scored by |
+|---|---|---|---|
+| **Measured** | 17 | speaking rate, articulation rate, pace consistency, filler sounds, verbal crutches, hesitation pauses (mid-phrase only), deliberate pausing, start latency, repetitions, speech continuity, intonation range, volume control, intelligibility, lexical diversity, eye contact, framing, body movement | the app, with fixed formulas (`lib/assessment/measured.ts`) |
+| **Transcript** | 14 | grammar, tenses, agreement, articles, prepositions, sentence construction and variety, vocabulary range and precision, collocations, idiom, register, signposting, confident language | the AI coach |
+| **Judgement** | 19 | relevance, main point, opening, organisation, flow, reasons, examples, depth, conclusion, clarity, conciseness, impact, audience awareness, task fulfilment… | the AI coach |
+
+The group scores are the average of their metrics, ignoring N/A; the overall score is the average of the four groups. Both are computed by the app, not the AI.
+
+Rules built in (for both the formulas and the AI's instructions):
+
+- Accent is never penalised; the AI is told which English you speak. Intelligibility uses the recognizer's word confidence as a proxy, and the report says so.
+- Slow speech only gets a gentle penalty on *speaking rate*; it doesn't count against fluency.
+- Pauses at sentence or clause ends are never counted as hesitation, and pausing after sentences is rewarded.
+- The AI gets the delivery measurements but can't hear the audio, so it's told not to judge pronunciation, rhythm or intonation itself.
+- A score without evidence is turned into N/A.
+
+**From the audio:** the recording is analysed in your browser for pitch (YIN pitch tracking), loudness and speech/silence. This gives *intonation range*, *volume control* (including trailing off at the ends of phrases) and *speech continuity*. The pitch tracking was checked against a real recording (JFK's "ask not" clip), where it agreed with an independent method and found the audible pauses.
+
+**What needs what:**
+
+- *Articulation rate, pace consistency, hesitation pauses, deliberate pausing* and *intelligibility* need **Deepgram** (word timings, punctuation and confidence). With browser transcription they show N/A.
+- *Eye contact* and *framing* need face tracking; *body movement* needs video.
+- Without an AI coach, the 17 measured metrics still work and the rest show N/A.
+- Pace consistency needs 30+ seconds of speech, and lexical diversity needs 40+ words.
+
+**Limits:** this is an evidence-based estimate, not a certified exam score. True pronunciation, word stress and rhythm need a human listener or a specialised pronunciation model, so they're deliberately not scored. A full report is about 4,000 words of output: roughly 5–10 cents with Claude, or a few minutes on a local Ollama model (small models may skip metrics, which then show N/A).
+
 ## Progress
 
 The **Progress** tab (at the top, next to Practice) shows:
@@ -174,6 +212,10 @@ components/Coach.tsx     AI coach feedback and one-pager panels
 app/api/coach/       GET: available AI providers; POST: coaching feedback on a take
 app/api/learn/       POST: one-pager for a prompt
 lib/coach/           Prompts, JSON Schemas + normalizers, Claude/Ollama provider layer
+app/api/assess/      POST: the AI-judged part of the full assessment (33 metrics + ranking + exercises)
+lib/assessment/      Full assessment: metric catalogue, measured scoring, AI schema/prompt, report export
+lib/audioFeatures.ts Pitch (YIN), loudness and speech/silence from the recording (unit tested)
+components/AssessmentPanel.tsx  The 50-metric report
 lib/useRecorder.ts   Camera/mic stream (capped at 60 fps) + MediaRecorder (video plus a small audio-only copy)
 lib/videoAnalysis.ts Movement and lighting from small greyscale frames (unit tested)
 lib/useFrameSampler.ts  Samples the live preview ~4×/s while a take records (frames + face)

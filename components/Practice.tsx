@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import AssessmentPanel from "@/components/AssessmentPanel";
 import { CoachPanel, OnePagerPanel, type Async } from "@/components/Coach";
+import { runAssessment, type AssessInput } from "@/lib/assessment/client";
+import { overallScores, type Assessment } from "@/lib/assessment/metrics";
 import Feedback, { type Analysis } from "@/components/Feedback";
 import { analyze, tips as tipsFor } from "@/lib/analysis";
 import { cacheOnePager, cachedOnePager, requestFeedback, requestOnePager } from "@/lib/coach/client";
@@ -82,6 +85,8 @@ export default function Practice({
   const [coach, setCoach] = useState<Async<CoachFeedback> | null>(null);
   const [onePager, setOnePager] = useState<Async<OnePager> | null>(null);
   const coachRequestRef = useRef<{ at: string; req: FeedbackRequest } | null>(null);
+  const assessInputRef = useRef<{ at: string; input: AssessInput } | null>(null);
+  const [assessment, setAssessment] = useState<Async<Assessment> | null>(null);
 
   const { stream, error, openStream, closeStream, startRecording, stopRecording } = useRecorder();
   const speech = useSpeechRecognition();
@@ -162,6 +167,7 @@ export default function Practice({
     setTake(null);
     setAnalysis(null);
     setCoach(null);
+    setAssessment(null);
     setOnePager(null);
     setPrompt(null);
     setPhase("setup");
@@ -175,6 +181,7 @@ export default function Practice({
     setTake(null);
     setAnalysis(null);
     setCoach(null);
+    setAssessment(null);
     setOnePager(null);
     setChecked([]);
     if (settings.prepSeconds === 0) {
@@ -288,7 +295,25 @@ export default function Practice({
     if (id !== takeIdRef.current) return;
     setAnalysis(result);
 
-    if (result.status === "done" && coachProvider && result.stats.words >= MIN_COACH_WORDS) {
+    if (result.status === "done" && settings.analysisProfile === "full" && result.stats.words >= MIN_COACH_WORDS) {
+      assessInputRef.current = {
+        at,
+        input: {
+          promptText: prompt.text,
+          mode: prompt.mode,
+          language: settings.language,
+          transcript: result.transcript,
+          stats: result.stats,
+          audio: recording?.audio ?? null,
+          video,
+          face,
+          seconds,
+          allowedSeconds: settings.speakSeconds,
+          judge: coachProvider ? { provider: coachProvider.id, model: coachModel, label: coachSource } : null,
+        },
+      };
+      runAssess();
+    } else if (result.status === "done" && coachProvider && result.stats.words >= MIN_COACH_WORDS) {
       coachRequestRef.current = {
         at,
         req: {
@@ -315,6 +340,23 @@ export default function Practice({
       };
       runCoach();
     }
+  }
+
+  /** The 50-metric assessment (full profile). Saved with the take even if the user moves on. */
+  function runAssess() {
+    const pending = assessInputRef.current;
+    if (!pending) return;
+    const id = takeIdRef.current;
+    setAssessment({ status: "working" });
+    runAssessment(pending.input).then(
+      (data) => {
+        const overall = overallScores(data.metrics).overall;
+        if (overall !== null) setHistory(updateSession(pending.at, { assessmentScore: Math.round(overall * 10) / 10 }));
+        void saveDetail(pending.at, { assessment: data }).catch(() => {});
+        if (id === takeIdRef.current) setAssessment({ status: "done", data });
+      },
+      (err: Error) => id === takeIdRef.current && setAssessment({ status: "error", message: err.message }),
+    );
   }
 
   /** Save the recording locally and drop the oldest beyond the user's limit. Best effort. */
@@ -443,6 +485,7 @@ export default function Practice({
               {settings.camera ? (settings.faceTracking ? "Video + face tracking" : "Video") : "Audio only"}
             </span>
             <span className="tag subtle">{coachProvider ? `Coach: ${coachProvider.label}` : "No AI coach"}</span>
+            <span className="tag subtle">{settings.analysisProfile === "full" ? "Full assessment" : "Quick coach"}</span>
             <button className="link small" onClick={onOpenSettings}>
               Change
             </button>
@@ -578,6 +621,8 @@ export default function Practice({
           {coach && (
             <CoachPanel state={coach} source={coachSource} onRetry={runCoach} onFollowUp={answerFollowUp} />
           )}
+
+          {assessment && <AssessmentPanel state={assessment} onRetry={runAssess} />}
 
           {coachProvider &&
             (onePager ? (

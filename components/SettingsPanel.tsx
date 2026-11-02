@@ -150,6 +150,24 @@ export default function SettingsPanel({ settings, onSettings, providers, serverS
         </section>
 
         <section className="settings-group">
+          <h3>Analysis profile</h3>
+          <fieldset>
+            <legend className="sr-only">Feedback after each take</legend>
+            <Chips
+              options={["quick", "full"] as const}
+              selected={(p) => settings.analysisProfile === p}
+              label={(p) => (p === "quick" ? "Quick coach" : "Full assessment")}
+              onPick={(p) => onSettings({ analysisProfile: p })}
+            />
+            <p className="muted small hint">
+              {settings.analysisProfile === "quick"
+                ? "Short coaching after each take: four scores, fixes and a stronger answer."
+                : "50 metrics scored 0–10 with evidence: 17 measured from your audio, timings and video, 33 judged by the AI coach. Takes about a minute; works best with Deepgram transcription."}
+            </p>
+          </fieldset>
+        </section>
+
+        <section className="settings-group">
           <h3>AI coach</h3>
           <fieldset>
             <legend className="sr-only">Provider</legend>

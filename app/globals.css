@@ -1802,6 +1802,157 @@ table.takes {
   }
 }
 
+/* Full assessment */
+
+.overall-tiles {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin-bottom: 6px;
+}
+
+.overall-tiles .tile-value {
+  font-variant-numeric: normal;
+}
+
+.overall-tile {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+ol.ranked {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+ol.ranked li + li {
+  margin-top: 6px;
+}
+
+.exercises {
+  margin-top: 8px;
+}
+
+.exercise {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.exercise p {
+  margin: 4px 0 0;
+}
+
+.metric-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.metric-group summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.metric-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.metric-group summary::before {
+  content: "▸";
+  color: var(--muted);
+}
+
+.metric-group[open] summary::before {
+  content: "▾";
+}
+
+.metric-group-name {
+  font-weight: 700;
+  flex: 1;
+}
+
+.metric-group-score {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.metric-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 6px;
+}
+
+.metric-list li {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+.metric-list li.na .metric-name {
+  color: var(--muted);
+}
+
+.metric-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.metric-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 160px;
+}
+
+.method {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.method-measured {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.metric-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 120px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-score > span {
+  width: 30px;
+  text-align: right;
+}
+
+.metric-score .score-track {
+  flex: 1;
+  margin-top: 0;
+}
+
+.metric-evidence {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+}
+
+.metric-improve {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
 @media (max-width: 520px) {
   .hide-narrow {
     display: none;

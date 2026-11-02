@@ -67,6 +67,8 @@ export interface GenerateArgs {
   toolName: string;
   toolDescription: string;
   maxTokens: number;
+  /** Ollama only: how long to wait (local models can be slow on long outputs). */
+  timeoutMs?: number;
 }
 
 /** Ask the chosen provider for JSON matching `schema`. Returns the raw (unvalidated) object. */
@@ -118,7 +120,7 @@ async function generateWithOllama(args: GenerateArgs): Promise<unknown> {
     res = await fetch(`${ollamaUrl()}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
+      signal: AbortSignal.timeout(args.timeoutMs ?? OLLAMA_TIMEOUT_MS),
       body: JSON.stringify({
         model,
         stream: false,
