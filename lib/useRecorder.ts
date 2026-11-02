@@ -60,6 +60,16 @@ function startTrack(stream: MediaStream, mimeType: string | undefined, options: 
 
 type Track = ReturnType<typeof startTrack>;
 
+/** Recording frame-rate ceiling. Higher rates only make files bigger for a talking-head video. */
+export const MAX_FPS = 60;
+
+/** Actual camera resolution and frame rate, e.g. "1280×720 · 30 fps" (null without video). */
+export function describeVideo(stream: MediaStream | null): string | null {
+  const s = stream?.getVideoTracks()[0]?.getSettings();
+  if (!s?.width || !s.height) return null;
+  return `${s.width}×${s.height}${s.frameRate ? ` · ${Math.round(s.frameRate)} fps` : ""}`;
+}
+
 /** Camera/mic stream plus MediaRecorders for one take at a time. */
 export function useRecorder() {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -86,11 +96,22 @@ export function useRecorder() {
         setError("This browser can't record. Try a recent Chrome, Edge, Firefox or Safari over HTTPS.");
         return false;
       }
+      const audio = { echoCancellation: true, noiseSuppression: true };
+      const camera: MediaTrackConstraints = { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
       try {
-        const s = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
-          video: video ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-        });
+        let s: MediaStream;
+        try {
+          s = await navigator.mediaDevices.getUserMedia({
+            audio,
+            // Only a ceiling: the camera keeps its own rate (often 30) up to 60 fps.
+            video: video ? { ...camera, frameRate: { max: MAX_FPS } } : false,
+          });
+        } catch (err) {
+          // A camera that can't satisfy the frame-rate cap: retry without it and cap the track afterwards.
+          if (!(video && err instanceof DOMException && err.name === "OverconstrainedError")) throw err;
+          s = await navigator.mediaDevices.getUserMedia({ audio, video: camera });
+          await s.getVideoTracks()[0]?.applyConstraints({ frameRate: { max: MAX_FPS } }).catch(() => {});
+        }
         streamRef.current = s;
         setStream(s);
         return true;

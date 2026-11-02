@@ -1,4 +1,5 @@
 import type { Prompt } from "./prompts";
+import type { Lighting, Movement } from "./videoAnalysis";
 
 /** Summary of one take. Kept small: full transcripts, feedback and video live in IndexedDB (takeStore). */
 export interface Session {
@@ -17,6 +18,11 @@ export interface Session {
   longPauses?: number | null;
   /** Average of the AI coach's four scores (1–10), once feedback arrives. */
   score?: number;
+  // On-camera stats; absent for audio-only takes.
+  movement?: Movement;
+  /** Share of the take with a lot of movement (0–1). */
+  highMotionShare?: number;
+  lighting?: Lighting;
 }
 
 const KEY = "speak-up:history";

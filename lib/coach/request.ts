@@ -3,6 +3,8 @@ import { CoachError } from "./providers";
 import { InvalidReplyError, type CoachRequestBase, type FeedbackRequest } from "./types";
 
 const MODES = new Set(["word", "topic", "situation", "explain", "speech"]);
+const MOVEMENTS = new Set(["still", "natural", "busy", "shaky"]);
+const LIGHTINGS = new Set(["good", "dark", "bright", "backlit", "covered"]);
 
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -38,6 +40,9 @@ export function parseFeedback(body: unknown): FeedbackRequest {
       fillersPerMin: num(s.fillersPerMin),
       longPauses: num(s.longPauses),
       startDelay: num(s.startDelay),
+      highMotionShare: num(s.highMotionShare),
+      movement: typeof s.movement === "string" && MOVEMENTS.has(s.movement) ? s.movement : null,
+      lighting: typeof s.lighting === "string" && LIGHTINGS.has(s.lighting) ? s.lighting : null,
     },
   };
 }

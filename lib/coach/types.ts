@@ -27,7 +27,16 @@ export interface CoachRequestBase {
 export interface FeedbackRequest extends CoachRequestBase {
   transcript: string;
   seconds: number;
-  stats: { wpm: number | null; fillersPerMin: number | null; longPauses: number | null; startDelay: number | null };
+  stats: {
+    wpm: number | null;
+    fillersPerMin: number | null;
+    longPauses: number | null;
+    startDelay: number | null;
+    /** On-camera stats (null for audio-only takes). */
+    highMotionShare?: number | null;
+    movement?: string | null;
+    lighting?: string | null;
+  };
 }
 
 export type OnePagerRequest = CoachRequestBase;

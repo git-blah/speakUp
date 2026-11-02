@@ -1,9 +1,10 @@
 import type { CoachFeedback } from "./coach/types";
 import type { Transcript } from "./transcript";
+import type { VideoStats } from "./videoAnalysis";
 
 /**
  * Per-take data too big for localStorage, kept in this browser's IndexedDB:
- * - details: transcript, rule-based tips and AI feedback (small)
+ * - details: transcript, rule-based tips, AI feedback and on-camera stats (small)
  * - media: the recorded video/audio (large; pruned to the user's "keep recordings" limit)
  * Both are keyed by the take's `at` timestamp, matching the Session in history.
  */
@@ -12,6 +13,7 @@ export interface TakeDetail {
   transcript?: Transcript;
   tips?: string[];
   feedback?: CoachFeedback;
+  video?: VideoStats;
 }
 
 export interface RecordingInfo {

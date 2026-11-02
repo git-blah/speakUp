@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CoachPanel } from "@/components/Coach";
 import Feedback from "@/components/Feedback";
+import VideoFeedback from "@/components/VideoFeedback";
 import { analyze, tips as tipsFor } from "@/lib/analysis";
 import type { Session } from "@/lib/history";
 import { DIFFICULTY_LABELS, MODES, type Prompt } from "@/lib/prompts";
@@ -119,6 +120,8 @@ export default function TakeDetail({ take, onClose, onPractise, onDelete, onReco
       ) : (
         <p className="muted small">No transcript was saved for this take.</p>
       )}
+
+      {detail?.video && <VideoFeedback stats={detail.video} onSeek={media ? seek : undefined} />}
 
       {detail?.feedback && (
         <CoachPanel

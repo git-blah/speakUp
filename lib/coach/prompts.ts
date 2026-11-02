@@ -18,7 +18,8 @@ Guidelines:
 - Prioritise the few changes that would help most. Keep each item to one or two sentences.
 - Language fixes: only genuine grammar or word-choice problems. The speaker uses ${req.language} English, so don't "correct" valid regional usage.
 - Calibrate scores: 5 = adequate, 7 = good, 9-10 = rare and excellent.
-- The better version should sound natural when spoken aloud, not like an essay.`;
+- The better version should sound natural when spoken aloud, not like an essay.
+- If on-camera stats are given, mention body language only when they show a clear problem (lots of movement, a moving camera, poor lighting). They're rough automatic measures; hand gestures also count as movement.`;
 
   const s = req.stats;
   const statLines = [
@@ -27,6 +28,8 @@ Guidelines:
     s.fillersPerMin !== null && `Filler words: ${s.fillersPerMin} per minute`,
     s.longPauses !== null && `Pauses of 2s or more: ${s.longPauses}`,
     s.startDelay !== null && `Seconds before first word: ${s.startDelay}`,
+    s.movement && `On-camera movement: ${s.movement}${s.highMotionShare != null ? ` (a lot of movement ${Math.round(s.highMotionShare * 100)}% of the time)` : ""}`,
+    s.lighting && `Video lighting: ${s.lighting}`,
   ].filter(Boolean);
 
   const user = `Prompt type: ${req.mode}. ${MODE_NOTES[req.mode] ?? ""}

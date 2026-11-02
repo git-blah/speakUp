@@ -12,7 +12,10 @@ import { KEEP_OPTIONS, LANGUAGES, PREP_OPTIONS, SPEAK_OPTIONS, formatSeconds, ty
 import { pruneRecordings, requestPersistentStorage, saveDetail, saveRecording } from "@/lib/takeStore";
 import { serverTranscriptionAvailable, transcribeOnServer } from "@/lib/transcribe";
 import type { Transcript } from "@/lib/transcript";
-import { useRecorder, type Recording } from "@/lib/useRecorder";
+import VideoFeedback from "@/components/VideoFeedback";
+import { useFrameSampler } from "@/lib/useFrameSampler";
+import { describeVideo, useRecorder, type Recording } from "@/lib/useRecorder";
+import { summarizeVideo, type VideoStats } from "@/lib/videoAnalysis";
 import { speechRecognitionSupported, useSpeechRecognition } from "@/lib/useSpeechRecognition";
 
 type Phase = "setup" | "ready" | "prep" | "speaking" | "review";
@@ -80,6 +83,8 @@ export default function Practice({
 
   const { stream, error, openStream, closeStream, startRecording, stopRecording } = useRecorder();
   const speech = useSpeechRecognition();
+  const sampler = useFrameSampler();
+  const [videoStats, setVideoStats] = useState<VideoStats | null>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const playbackRef = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   const speakStartRef = useRef(0);
@@ -130,6 +135,8 @@ export default function Practice({
 
   function endSession() {
     takeIdRef.current++;
+    sampler.stop();
+    setVideoStats(null);
     void stopRecording();
     void speech.stop();
     closeStream();
@@ -143,6 +150,7 @@ export default function Practice({
 
   function beginPrep(next: Prompt) {
     takeIdRef.current++;
+    setVideoStats(null);
     setPrompt(next);
     setTake(null);
     setAnalysis(null);
@@ -173,6 +181,8 @@ export default function Practice({
     }
     // Without server transcription, transcribe live in the browser while recording.
     if (!serverStt) speech.start(settings.language);
+    // Sample the live preview for movement and lighting (video takes only).
+    if (previewRef.current && stream?.getVideoTracks().length) sampler.start(previewRef.current);
     speakStartRef.current = Date.now();
     setSpeakLeft(settings.speakSeconds);
     setPhase("speaking");
@@ -213,8 +223,10 @@ export default function Practice({
     const id = ++takeIdRef.current;
     const at = new Date().toISOString(); // the take's id across history and IndexedDB
     const seconds = (Date.now() - speakStartRef.current) / 1000;
+    const video = summarizeVideo(sampler.stop());
     const [recording, browserTranscript] = await Promise.all([stopRecording(), speech.stop()]);
     if (id !== takeIdRef.current) return;
+    setVideoStats(video);
     if (recording && recording.media.size > 0) {
       setTake({ url: URL.createObjectURL(recording.media), type: recording.media.type, seconds });
       if (settings.keepRecordings > 0) void keepRecording(at, recording.media);
@@ -237,10 +249,14 @@ export default function Practice({
           startDelay: result.stats.startDelay,
           longPauses: result.stats.longPauses,
         }),
+        ...(video && { movement: video.movement, highMotionShare: video.highShare, lighting: video.lighting }),
       }),
     );
-    if (result.status === "done") {
-      void saveDetail(at, { transcript: result.transcript, tips: result.tips }).catch(() => {});
+    if (result.status === "done" || video) {
+      void saveDetail(at, {
+        ...(result.status === "done" && { transcript: result.transcript, tips: result.tips }),
+        ...(video && { video }),
+      }).catch(() => {});
     }
     if (id !== takeIdRef.current) return;
     setAnalysis(result);
@@ -261,6 +277,9 @@ export default function Practice({
             fillersPerMin: result.stats.fillersPerMin,
             longPauses: result.stats.longPauses,
             startDelay: result.stats.startDelay,
+            highMotionShare: video?.highShare ?? null,
+            movement: video?.movement ?? null,
+            lighting: video?.lighting ?? null,
           },
         },
       };
@@ -604,6 +623,7 @@ export default function Practice({
             ) : (
               <div className="preview audio-only">🎙️ Audio only</div>
             )}
+            {phase === "ready" && describeVideo(stream) && <div className="cam-info">{describeVideo(stream)}</div>}
 
             {phase === "prep" && (
               <div className="overlay">
@@ -674,6 +694,8 @@ export default function Practice({
           )}
 
           {analysis && <Feedback analysis={analysis} onSeek={take ? seekTo : undefined} />}
+
+          {videoStats && <VideoFeedback stats={videoStats} onSeek={take ? seekTo : undefined} />}
 
           {coach && (
             <CoachPanel state={coach} source={coachSource} onRetry={runCoach} onFollowUp={answerFollowUp} />

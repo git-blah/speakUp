@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { feedbackPrompts } from "./prompts";
 import { generateJson, listProviders } from "./providers";
 import { parseFeedback } from "./request";
 import { FEEDBACK_SCHEMA, InvalidReplyError, normalizeFeedback, normalizeOnePager, parseJsonReply } from "./types";
@@ -60,6 +61,19 @@ describe("parseFeedback", () => {
     expect(r.mode).toBe("topic");
     expect(r.stats.wpm).toBeNull();
     expect(() => parseFeedback({ provider: "openai", promptText: "Hi", transcript: "x" })).toThrow(/provider/);
+  });
+
+  it("passes valid on-camera stats to the coach prompt and drops unknown ones", () => {
+    const r = parseFeedback({
+      provider: "anthropic",
+      promptText: "Hi",
+      transcript: "hello",
+      stats: { highMotionShare: 0.4, movement: "busy", lighting: "sideways" },
+    });
+    expect(r.stats).toMatchObject({ highMotionShare: 0.4, movement: "busy", lighting: null });
+    const { user } = feedbackPrompts(r);
+    expect(user).toContain("On-camera movement: busy (a lot of movement 40% of the time)");
+    expect(user).not.toContain("Video lighting");
   });
 });
 

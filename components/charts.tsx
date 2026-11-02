@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { rollingAverage, type CalendarDay, type TrendPoint } from "@/lib/progress";
 
 /** Width of an element, tracked with ResizeObserver so charts fit their card. */
-function useWidth<T extends HTMLElement>(fallback = 320) {
+export function useWidth<T extends HTMLElement>(fallback = 320) {
   const ref = useRef<T>(null);
   const [width, setWidth] = useState(fallback);
   useEffect(() => {

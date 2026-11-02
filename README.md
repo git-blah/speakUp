@@ -26,6 +26,18 @@ After each take you get:
 - **Stats:** pace (words per minute, with 130–160 as the target), fillers (um/uh plus possible fillers like "like", "you know", "basically"), long pauses (2 seconds or more), time to your first word, and word count with vocabulary variety.
 - **Tips:** up to three concrete suggestions for your next take, based on those stats.
 - **Transcript:** what you said, with fillers highlighted and long pauses marked. With Deepgram, clicking a word jumps the video to that moment.
+- **On camera** (video takes): movement (natural, very still, a lot of movement, or the camera itself moving), lighting (good, too dark, washed out, backlit, or camera blocked), and a second-by-second movement timeline you can click to jump to that moment in the video.
+
+### How the on-camera analysis works
+
+While you speak, the app takes about 4 tiny greyscale snapshots a second (64×48 pixels) from the camera preview. Everything happens in your browser, and the snapshots are thrown away once the numbers are worked out.
+
+- **Movement** is the share of the picture that changes between snapshots. Change in the frame's outer border means the camera moved, since a speaker moves in the middle while the background stays put. Change mostly in the middle means you moved.
+- **Lighting** comes from overall brightness, plus centre-versus-edge brightness to spot a bright window behind you.
+
+These are rough measures: hand gestures count as movement too, and there's no face tracking yet, so framing and eye contact aren't checked. The thresholds are at the top of `lib/videoAnalysis.ts` if they feel too strict or too lenient for your camera. The results are saved with each take, shown again when you reopen it from Progress, and passed to the AI coach.
+
+Recording is capped at **60 fps**. The camera keeps its own rate (usually 30 fps) up to that limit, and the preview shows the resolution and frame rate in use.
 
 With an AI coach turned on (Claude or a local Ollama model), you also get:
 
@@ -124,7 +136,10 @@ components/Coach.tsx     AI coach feedback and one-pager panels
 app/api/coach/       GET: available AI providers; POST: coaching feedback on a take
 app/api/learn/       POST: one-pager for a prompt
 lib/coach/           Prompts, JSON Schemas + normalizers, Claude/Ollama provider layer
-lib/useRecorder.ts   Camera/mic stream + MediaRecorder (video plus a small audio-only copy)
+lib/useRecorder.ts   Camera/mic stream (capped at 60 fps) + MediaRecorder (video plus a small audio-only copy)
+lib/videoAnalysis.ts Movement and lighting from small greyscale frames (unit tested)
+lib/useFrameSampler.ts  Samples the live preview ~4×/s while a take records
+components/VideoFeedback.tsx  "On camera" tiles, tips and movement timeline
 lib/useSpeechRecognition.ts  Live browser transcription fallback
 components/App.tsx       App shell: header, Practice/Progress tabs, shared settings and history
 components/Progress.tsx  Weekly review, practice calendar, trend charts and take table
