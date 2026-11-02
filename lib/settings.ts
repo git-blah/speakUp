@@ -13,6 +13,8 @@ export interface Settings {
   coach: "auto" | ProviderId | "off";
   /** Preferred Ollama model ("" = server default). */
   ollamaModel: string;
+  /** How many recent recordings to keep in this browser (0 = don't save). */
+  keepRecordings: number;
 }
 
 /** English variants supported by both browser speech recognition and Deepgram nova-3. */
@@ -32,10 +34,12 @@ export const DEFAULT_SETTINGS: Settings = {
   language: "en-US",
   coach: "auto",
   ollamaModel: "",
+  keepRecordings: 10,
 };
 
 export const PREP_OPTIONS = [0, 15, 30, 60];
 export const SPEAK_OPTIONS = [30, 60, 120, 180];
+export const KEEP_OPTIONS = [0, 10, 30, 100];
 
 const KEY = "speak-up:settings";
 

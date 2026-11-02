@@ -5,19 +5,11 @@ import { CoachPanel, OnePagerPanel, type Async } from "@/components/Coach";
 import Feedback, { type Analysis } from "@/components/Feedback";
 import { analyze, tips as tipsFor } from "@/lib/analysis";
 import { cacheOnePager, cachedOnePager, fetchProviders, requestFeedback, requestOnePager } from "@/lib/coach/client";
-import type { CoachFeedback, FeedbackRequest, OnePager, ProviderInfo } from "@/lib/coach/types";
-import { currentStreak, loadHistory, saveSession, type Session } from "@/lib/history";
+import { SCORE_KEYS, type CoachFeedback, type FeedbackRequest, type OnePager, type ProviderInfo } from "@/lib/coach/types";
+import { saveSession, updateSession, type Session } from "@/lib/history";
 import { DIFFICULTY_LABELS, MODES, pickPrompt, type Mode, type Prompt } from "@/lib/prompts";
-import {
-  DEFAULT_SETTINGS,
-  LANGUAGES,
-  PREP_OPTIONS,
-  SPEAK_OPTIONS,
-  formatSeconds,
-  loadSettings,
-  storeSettings,
-  type Settings,
-} from "@/lib/settings";
+import { KEEP_OPTIONS, LANGUAGES, PREP_OPTIONS, SPEAK_OPTIONS, formatSeconds, type Settings } from "@/lib/settings";
+import { pruneRecordings, requestPersistentStorage, saveDetail, saveRecording } from "@/lib/takeStore";
 import { serverTranscriptionAvailable, transcribeOnServer } from "@/lib/transcribe";
 import type { Transcript } from "@/lib/transcript";
 import { useRecorder, type Recording } from "@/lib/useRecorder";
@@ -49,9 +41,29 @@ const SELF_CHECK = [
   "I finished with a strong closing line",
 ];
 
-export default function Practice() {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [history, setHistory] = useState<Session[]>([]);
+interface PracticeProps {
+  settings: Settings;
+  onSettings: (patch: Partial<Settings>) => void;
+  history: Session[];
+  onHistory: (history: Session[]) => void;
+  /** True while a session is running (camera on), so the app can lock navigation. */
+  onActiveChange: (active: boolean) => void;
+  /** A prompt chosen elsewhere (e.g. "practise again" in Progress) to use for the next reveal. */
+  queued: Prompt | null;
+  onQueuedTaken: () => void;
+  onOpenProgress: () => void;
+}
+
+export default function Practice({
+  settings,
+  onSettings: updateSettings,
+  history,
+  onHistory: setHistory,
+  onActiveChange,
+  queued,
+  onQueuedTaken,
+  onOpenProgress,
+}: PracticeProps) {
   const [phase, setPhase] = useState<Phase>("setup");
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [prepLeft, setPrepLeft] = useState(0);
@@ -64,7 +76,7 @@ export default function Practice() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [coach, setCoach] = useState<Async<CoachFeedback> | null>(null);
   const [onePager, setOnePager] = useState<Async<OnePager> | null>(null);
-  const coachRequestRef = useRef<FeedbackRequest | null>(null);
+  const coachRequestRef = useRef<{ at: string; req: FeedbackRequest } | null>(null);
 
   const { stream, error, openStream, closeStream, startRecording, stopRecording } = useRecorder();
   const speech = useSpeechRecognition();
@@ -74,13 +86,14 @@ export default function Practice() {
   // Bumped whenever a take starts or the session ends, so late transcription results are ignored.
   const takeIdRef = useRef(0);
 
-  // Load per-browser settings and history after mount (localStorage isn't available on the server).
   useEffect(() => {
-    setSettings(loadSettings());
-    setHistory(loadHistory());
     void serverTranscriptionAvailable().then(setServerStt);
     void fetchProviders().then(setProviders);
   }, []);
+
+  useEffect(() => {
+    onActiveChange(phase !== "setup");
+  }, [phase, onActiveChange]);
 
   const coachProvider = resolveCoach(settings, providers);
   const coachModel =
@@ -99,12 +112,6 @@ export default function Practice() {
       if (take) URL.revokeObjectURL(take.url);
     };
   }, [take]);
-
-  function updateSettings(patch: Partial<Settings>) {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    storeSettings(next);
-  }
 
   function toggleMode(mode: Mode) {
     const has = settings.modes.includes(mode);
@@ -151,6 +158,11 @@ export default function Practice() {
   }
 
   function revealPrompt() {
+    if (queued) {
+      onQueuedTaken();
+      beginPrep(queued);
+      return;
+    }
     beginPrep(pickPrompt(settings, prompt?.id));
   }
 
@@ -199,11 +211,13 @@ export default function Practice() {
     if (phase !== "speaking" || !prompt) return;
     setPhase("review");
     const id = ++takeIdRef.current;
+    const at = new Date().toISOString(); // the take's id across history and IndexedDB
     const seconds = (Date.now() - speakStartRef.current) / 1000;
     const [recording, browserTranscript] = await Promise.all([stopRecording(), speech.stop()]);
     if (id !== takeIdRef.current) return;
     if (recording && recording.media.size > 0) {
       setTake({ url: URL.createObjectURL(recording.media), type: recording.media.type, seconds });
+      if (settings.keepRecordings > 0) void keepRecording(at, recording.media);
     }
     setAnalysis({ status: "working" });
     const result = await runAnalysis(recording, browserTranscript, seconds);
@@ -213,45 +227,71 @@ export default function Practice() {
         promptId: prompt.id,
         promptText: prompt.text,
         mode: prompt.mode,
+        difficulty: prompt.difficulty,
         seconds: Math.round(seconds),
-        at: new Date().toISOString(),
+        at,
         ...(result.status === "done" && {
           words: result.stats.words,
           wpm: result.stats.wpm,
           fillersPerMin: result.stats.fillersPerMin,
+          startDelay: result.stats.startDelay,
+          longPauses: result.stats.longPauses,
         }),
       }),
     );
+    if (result.status === "done") {
+      void saveDetail(at, { transcript: result.transcript, tips: result.tips }).catch(() => {});
+    }
     if (id !== takeIdRef.current) return;
     setAnalysis(result);
 
     if (result.status === "done" && coachProvider && result.stats.words >= MIN_COACH_WORDS) {
       coachRequestRef.current = {
-        provider: coachProvider.id,
-        model: coachModel,
-        promptText: prompt.text,
-        mode: prompt.mode,
-        language: settings.language,
-        transcript: result.transcript.text,
-        seconds,
-        stats: {
-          wpm: result.stats.wpm,
-          fillersPerMin: result.stats.fillersPerMin,
-          longPauses: result.stats.longPauses,
-          startDelay: result.stats.startDelay,
+        at,
+        req: {
+          provider: coachProvider.id,
+          model: coachModel,
+          promptText: prompt.text,
+          mode: prompt.mode,
+          language: settings.language,
+          transcript: result.transcript.text,
+          seconds,
+          stats: {
+            wpm: result.stats.wpm,
+            fillersPerMin: result.stats.fillersPerMin,
+            longPauses: result.stats.longPauses,
+            startDelay: result.stats.startDelay,
+          },
         },
       };
       runCoach();
     }
   }
 
+  /** Save the recording locally and drop the oldest beyond the user's limit. Best effort. */
+  async function keepRecording(at: string, media: Blob) {
+    try {
+      requestPersistentStorage();
+      await saveRecording(at, media);
+      await pruneRecordings(settings.keepRecordings);
+    } catch {
+      // Storage full or unavailable: the take still works, it just isn't kept.
+    }
+  }
+
   function runCoach() {
-    const req = coachRequestRef.current;
-    if (!req) return;
+    const pending = coachRequestRef.current;
+    if (!pending) return;
     const id = takeIdRef.current;
     setCoach({ status: "working" });
-    requestFeedback(req).then(
-      (data) => id === takeIdRef.current && setCoach({ status: "done", data }),
+    requestFeedback(pending.req).then(
+      (data) => {
+        // Store the feedback and score with the take, even if the user has moved on.
+        const score = SCORE_KEYS.reduce((sum, k) => sum + data.scores[k], 0) / SCORE_KEYS.length;
+        setHistory(updateSession(pending.at, { score }));
+        void saveDetail(pending.at, { feedback: data }).catch(() => {});
+        if (id === takeIdRef.current) setCoach({ status: "done", data });
+      },
       (err: Error) => id === takeIdRef.current && setCoach({ status: "error", message: err.message }),
     );
   }
@@ -316,22 +356,11 @@ export default function Practice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, speakLeft]);
 
-  const streak = currentStreak(history);
   const hasVideo = !!stream && stream.getVideoTracks().length > 0;
   const showStage = phase === "ready" || phase === "prep" || phase === "speaking";
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>●</span> Speak Up
-        </div>
-        <div className="stats">
-          <span title="Days in a row with at least one take">🔥 {streak} day{streak === 1 ? "" : "s"}</span>
-          <span title="Total takes recorded">{history.length} take{history.length === 1 ? "" : "s"}</span>
-        </div>
-      </header>
-
+    <>
       {error && (
         <div className="alert" role="alert">
           {error}
@@ -494,13 +523,48 @@ export default function Practice() {
             Record video (turn off for audio only)
           </label>
 
+          <fieldset>
+            <legend>Save recordings</legend>
+            <div className="chips">
+              {KEEP_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  className={`chip ${settings.keepRecordings === n ? "on" : ""}`}
+                  aria-pressed={settings.keepRecordings === n}
+                  onClick={() => updateSettings({ keepRecordings: n })}
+                >
+                  {n === 0 ? "Off" : `Last ${n}`}
+                </button>
+              ))}
+            </div>
+            <p className="muted small hint">
+              Kept only in this browser, so you can watch old takes in Progress. A one-minute video is
+              roughly 5–15 MB.
+            </p>
+          </fieldset>
+
+          {queued && (
+            <div className="queued">
+              <span className="small muted">Up next</span>
+              <span className="queued-text">{queued.text}</span>
+              <button className="link" onClick={onQueuedTaken}>
+                Clear
+              </button>
+            </div>
+          )}
+
           <button className="primary big" onClick={startSession} disabled={busy}>
             {busy ? "Starting camera…" : "Start session"}
           </button>
 
           {history.length > 0 && (
             <div className="history">
-              <h2>Recent takes</h2>
+              <div className="history-head">
+                <h2>Recent takes</h2>
+                <button className="link" onClick={onOpenProgress}>
+                  See your progress →
+                </button>
+              </div>
               <ul>
                 {history.slice(0, 5).map((s) => (
                   <li key={s.at}>
@@ -670,6 +734,6 @@ export default function Practice() {
           </div>
         </section>
       )}
-    </div>
+    </>
   );
 }

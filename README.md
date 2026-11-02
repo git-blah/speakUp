@@ -33,7 +33,26 @@ With an AI coach turned on (Claude or a local Ollama model), you also get:
 - **A follow-up question** from an imaginary audience member. Press *Answer it now* to make it your next prompt, for quick-thinking practice.
 - **A one-pager** on the topic (key points, perspectives, vocabulary with examples, an answer outline and strong openers) that you can print or save as a PDF.
 
-Settings and a history of your takes (prompt, length, date, used for the daily streak) are saved in your browser. Video is never uploaded. It exists only until you leave the page, unless you download it. Speech is transcribed by your browser or, if you set it up, by Deepgram (see below).
+## Progress
+
+The **Progress** tab (at the top, next to Practice) shows:
+
+- **Last 7 days:** takes, minutes spoken, pace, fillers per minute, time to first word and coach score, each compared with the 7 days before (▲/▼ with "better" or "worse"), plus a **focus for the next 7 days** picked from your weakest area.
+- **Practice calendar:** the last 16 weeks, one square per day, darker for more takes.
+- **Trends:** pace (with the 130–160 target band), fillers, first word and coach score over time, with a 5-take average line. Filter by date range and prompt type, hover or use the arrow keys for values, and click a point to open that take.
+- **All takes:** a table of every take. Open one to rewatch the recording (if it was kept), see its stats, transcript and saved AI feedback, practise the same prompt again, or delete it.
+
+## Where your data lives
+
+Everything stays in your browser. Nothing is stored on a server.
+
+- **Take history** (prompt, date, length, stats, coach score) is in `localStorage`, up to 1,000 takes.
+- **Transcripts, tips and AI feedback** for each take are in IndexedDB.
+- **Recordings** are in IndexedDB too, if *Save recordings* is on (setup screen: Off / last 10 / 30 / 100; default is the last 10). Older ones are deleted automatically. A one-minute video is roughly 5–15 MB.
+
+Clearing your browser's site data deletes all of this, and it doesn't sync between devices or browsers. Download any recording you want to keep for good.
+
+Speech is transcribed by your browser or, if you set it up, by Deepgram (see below). Video is never uploaded.
 
 ## Transcription
 
@@ -107,7 +126,13 @@ app/api/learn/       POST: one-pager for a prompt
 lib/coach/           Prompts, JSON Schemas + normalizers, Claude/Ollama provider layer
 lib/useRecorder.ts   Camera/mic stream + MediaRecorder (video plus a small audio-only copy)
 lib/useSpeechRecognition.ts  Live browser transcription fallback
-lib/history.ts       Local take history and streak calculation
+components/App.tsx       App shell: header, Practice/Progress tabs, shared settings and history
+components/Progress.tsx  Weekly review, practice calendar, trend charts and take table
+components/charts.tsx    SVG trend chart (crosshair, keyboard) and calendar heatmap
+components/TakeDetail.tsx  Dialog for a past take: recording, stats, transcript, feedback
+lib/progress.ts      Weekly review, focus, streaks, rolling averages, calendar (unit tested)
+lib/takeStore.ts     IndexedDB store for recordings and per-take details (unit tested)
+lib/history.ts       Take history in localStorage and streak calculation
 lib/settings.ts      Settings defaults and persistence
 ```
 
@@ -117,5 +142,6 @@ To add prompts, add a `[difficulty, "text"]` entry under the right mode in `lib/
 
 - ~~Phase 2: transcription and stats~~ ✅
 - ~~Phase 3: AI coach and one-pager (Claude or local Ollama)~~ ✅
-- **Phase 4: progress.** Score trends over time, saved recordings and a weekly review.
+- ~~Phase 4: progress (weekly review, trends, saved recordings, take history)~~ ✅
+- **Next ideas:** export and import your history as a backup, and an AI-written weekly review based on your saved feedback.
 - **Later:** an audience mode (live follow-up questions), a comprehension mode (listen, then summarise), a debate mode (argue the other side) and an eye-contact check.
