@@ -15,6 +15,8 @@ export interface Settings {
   ollamaModel: string;
   /** How many recent recordings to keep in this browser (0 = don't save). */
   keepRecordings: number;
+  /** Track the face (MediaPipe, in the browser) for framing and eye contact. */
+  faceTracking: boolean;
 }
 
 /** English variants supported by both browser speech recognition and Deepgram nova-3. */
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: Settings = {
   coach: "auto",
   ollamaModel: "",
   keepRecordings: 10,
+  faceTracking: true,
 };
 
 export const PREP_OPTIONS = [0, 15, 30, 60];

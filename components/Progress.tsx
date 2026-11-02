@@ -228,6 +228,14 @@ export default function Progress({ history, onHistory, onPractise, onGoPractice,
             domain={[0, 10]}
             onSelect={(at) => setOpen(history.find((s) => s.at === at) ?? null)}
           />
+          <TrendChart
+            title="Eye contact"
+            subtitle="Share of the time looking at the camera · higher is better"
+            points={trendPoints(filtered, (s) => (s.eyeContactShare != null ? s.eyeContactShare * 100 : null))}
+            format={(v) => `${Math.round(v)}%`}
+            domain={[0, 100]}
+            onSelect={(at) => setOpen(history.find((s) => s.at === at) ?? null)}
+          />
         </div>
       </section>
 

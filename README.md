@@ -26,7 +26,14 @@ After each take you get:
 - **Stats:** pace (words per minute, with 130–160 as the target), fillers (um/uh plus possible fillers like "like", "you know", "basically"), long pauses (2 seconds or more), time to your first word, and word count with vocabulary variety.
 - **Tips:** up to three concrete suggestions for your next take, based on those stats.
 - **Transcript:** what you said, with fillers highlighted and long pauses marked. With Deepgram, clicking a word jumps the video to that moment.
-- **On camera** (video takes): movement (natural, very still, a lot of movement, or the camera itself moving), lighting (good, too dark, washed out, backlit, or camera blocked), and a second-by-second movement timeline you can click to jump to that moment in the video.
+- **On camera** (video takes):
+  - **eye contact:** share of the time you looked at the camera, with time spent looking down or away;
+  - **framing:** well framed, off to one side, too close, too far, head cut off, or sitting too low;
+  - **movement:** natural, very still, a lot of movement, or the camera itself moving;
+  - **lighting:** good, too dark, washed out, backlit, or camera blocked;
+  - second-by-second timelines of where you looked and how much you moved. Click either to jump to that moment in the video.
+
+Before you reveal a prompt, a **live framing check** on the preview tells you what to fix, e.g. "Move back a little" or "✓ Well framed".
 
 ### How the on-camera analysis works
 
@@ -35,7 +42,27 @@ While you speak, the app takes about 4 tiny greyscale snapshots a second (64×48
 - **Movement** is the share of the picture that changes between snapshots. Change in the frame's outer border means the camera moved, since a speaker moves in the middle while the background stays put. Change mostly in the middle means you moved.
 - **Lighting** comes from overall brightness, plus centre-versus-edge brightness to spot a bright window behind you.
 
-These are rough measures: hand gestures count as movement too, and there's no face tracking yet, so framing and eye contact aren't checked. The thresholds are at the top of `lib/videoAnalysis.ts` if they feel too strict or too lenient for your camera. The results are saved with each take, shown again when you reopen it from Progress, and passed to the AI coach.
+These are rough measures, and hand gestures count as movement too. The thresholds are at the top of `lib/videoAnalysis.ts` if they feel too strict or too lenient for your camera. The results are saved with each take, shown again when you reopen it from Progress, and passed to the AI coach.
+
+### Face tracking (framing and eye contact)
+
+Face tracking uses Google's [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker), running entirely in your browser (WebAssembly, with the GPU if available). It's on by default; switch it off on the setup screen with *Check framing and eye contact*.
+
+- **Framing** comes from the face's position and size in the frame. The advice accounts for the mirrored preview, so "move to your left" means your left as you see yourself.
+- **Eye contact** combines head direction (from the model's 3D head pose) with eye direction (its gaze scores). Head tilt is judged against your own upright pose during the take, because a laptop camera below eye level makes everyone look slightly down. Only glances below that count as looking down.
+- **Backlight:** when a face is found, the lighting check compares your face with the background, instead of assuming you're in the middle of the frame.
+
+**What downloads:** the WebAssembly runtime (~13 MB) is served by the app itself; `npm install` copies it into `public/mediapipe/`. The model (~4 MB) is fetched once from Google's model storage and cached by your browser. To serve the model yourself instead:
+
+```bash
+npm run fetch-face-model          # saves public/models/face_landmarker.task
+# then in .env.local (read at build time):
+NEXT_PUBLIC_FACE_MODEL_URL=/models/face_landmarker.task
+```
+
+Video frames never leave your browser either way.
+
+**Limits:** eye contact means looking at the **lens**, not at yourself on screen. The two differ a little on most laptops, and that's what audiences notice. Glasses, strong side light or a very low camera can confuse gaze detection. Faces far from the camera (roughly beyond 2 m) aren't detected and show as "No face detected". The thresholds are at the top of `lib/face/faceAnalysis.ts`.
 
 Recording is capped at **60 fps**. The camera keeps its own rate (usually 30 fps) up to that limit, and the preview shows the resolution and frame rate in use.
 
@@ -51,7 +78,7 @@ The **Progress** tab (at the top, next to Practice) shows:
 
 - **Last 7 days:** takes, minutes spoken, pace, fillers per minute, time to first word and coach score, each compared with the 7 days before (▲/▼ with "better" or "worse"), plus a **focus for the next 7 days** picked from your weakest area.
 - **Practice calendar:** the last 16 weeks, one square per day, darker for more takes.
-- **Trends:** pace (with the 130–160 target band), fillers, first word and coach score over time, with a 5-take average line. Filter by date range and prompt type, hover or use the arrow keys for values, and click a point to open that take.
+- **Trends:** pace (with the 130–160 target band), fillers, first word, coach score and eye contact over time, with a 5-take average line. Filter by date range and prompt type, hover or use the arrow keys for values, and click a point to open that take.
 - **All takes:** a table of every take. Open one to rewatch the recording (if it was kept), see its stats, transcript and saved AI feedback, practise the same prompt again, or delete it.
 
 ## Where your data lives
@@ -138,8 +165,12 @@ app/api/learn/       POST: one-pager for a prompt
 lib/coach/           Prompts, JSON Schemas + normalizers, Claude/Ollama provider layer
 lib/useRecorder.ts   Camera/mic stream (capped at 60 fps) + MediaRecorder (video plus a small audio-only copy)
 lib/videoAnalysis.ts Movement and lighting from small greyscale frames (unit tested)
-lib/useFrameSampler.ts  Samples the live preview ~4×/s while a take records
-components/VideoFeedback.tsx  "On camera" tiles, tips and movement timeline
+lib/useFrameSampler.ts  Samples the live preview ~4×/s while a take records (frames + face)
+lib/face/faceAnalysis.ts  Framing, head pose, gaze and per-take eye contact (unit tested)
+lib/face/faceTracker.ts   Lazy MediaPipe FaceLandmarker loader (GPU with CPU fallback)
+scripts/copy-mediapipe-wasm.mjs  Copies MediaPipe's WASM into public/ (runs on install/dev/build)
+scripts/fetch-face-model.mjs     Optional: download the face model to self-host it
+components/VideoFeedback.tsx  "On camera" tiles, tips, eye-contact strip and movement timeline
 lib/useSpeechRecognition.ts  Live browser transcription fallback
 components/App.tsx       App shell: header, Practice/Progress tabs, shared settings and history
 components/Progress.tsx  Weekly review, practice calendar, trend charts and take table

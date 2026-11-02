@@ -27,6 +27,8 @@ const DARK = 60;
 const BRIGHT = 205;
 /** Centre this much darker than the edges (0–255) suggests a bright window behind the speaker. */
 const BACKLIT = -45;
+/** With face tracking: the face this much darker than the rest of the frame means backlit. */
+const FACE_BACKLIT = -35;
 
 export interface FrameSample {
   /** Seconds since recording started. */
@@ -39,6 +41,8 @@ export interface FrameSample {
   edgeMotion: number | null;
   /** Centre brightness minus edge brightness. */
   centerDiff: number;
+  /** Face brightness minus the rest of the frame, when face tracking found a face. */
+  faceDiff?: number;
 }
 
 export type Movement = "still" | "natural" | "busy" | "shaky";
@@ -110,6 +114,30 @@ export function frameSample(gray: Uint8Array, prev: Uint8Array | null, t: number
   };
 }
 
+/**
+ * Mean brightness inside a box (normalised centre/size) minus the mean outside it, on a
+ * SAMPLE_W×SAMPLE_H greyscale frame. Used to compare the face with its background.
+ */
+export function regionDiff(gray: Uint8Array, cx: number, cy: number, bw: number, bh: number, w = SAMPLE_W, h = SAMPLE_H): number | null {
+  const x0 = Math.max(0, Math.floor((cx - bw / 2) * w));
+  const x1 = Math.min(w, Math.ceil((cx + bw / 2) * w));
+  const y0 = Math.max(0, Math.floor((cy - bh / 2) * h));
+  const y1 = Math.min(h, Math.ceil((cy + bh / 2) * h));
+  let inSum = 0;
+  let inN = 0;
+  let total = 0;
+  for (let i = 0; i < gray.length; i++) total += gray[i];
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      inSum += gray[y * w + x];
+      inN++;
+    }
+  }
+  const outN = gray.length - inN;
+  if (inN === 0 || outN === 0) return null;
+  return inSum / inN - (total - inSum) / outN;
+}
+
 function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
@@ -131,6 +159,9 @@ export function summarizeVideo(samples: FrameSample[]): VideoStats | null {
 
   const brightness = samples.reduce((a, s) => a + s.brightness, 0) / samples.length;
   const centerDiff = median(samples.map((s) => s.centerDiff));
+  // Prefer the real face position when face tracking supplied it; otherwise assume the centre.
+  const faceDiffs = samples.map((s) => s.faceDiff).filter((d): d is number => d !== undefined);
+  const backlit = faceDiffs.length >= 4 ? median(faceDiffs) < FACE_BACKLIT : centerDiff < BACKLIT;
 
   let movement: Movement = "natural";
   if (share(cameraMoves) > 0.15) movement = "shaky";
@@ -141,7 +172,7 @@ export function summarizeVideo(samples: FrameSample[]): VideoStats | null {
   // Backlit before bright: a bright window behind you raises the average but the fix is different.
   if (brightness < COVERED) lighting = "covered";
   else if (brightness < DARK) lighting = "dark";
-  else if (centerDiff < BACKLIT) lighting = "backlit";
+  else if (backlit) lighting = "backlit";
   else if (brightness > BRIGHT) lighting = "bright";
 
   const seconds = Math.ceil(moving[moving.length - 1].t);

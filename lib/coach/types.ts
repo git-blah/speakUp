@@ -36,6 +36,10 @@ export interface FeedbackRequest extends CoachRequestBase {
     highMotionShare?: number | null;
     movement?: string | null;
     lighting?: string | null;
+    /** Face tracking (null when off or no face). */
+    eyeContactShare?: number | null;
+    lookingDownShare?: number | null;
+    framing?: string | null;
   };
 }
 

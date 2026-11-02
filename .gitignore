@@ -5,3 +5,8 @@ next-env.d.ts
 *.tsbuildinfo
 .env*.local
 .DS_Store
+
+# Copied from node_modules by scripts/copy-mediapipe-wasm.mjs
+public/mediapipe/
+# Optional self-hosted face model (npm run fetch-face-model)
+public/models/

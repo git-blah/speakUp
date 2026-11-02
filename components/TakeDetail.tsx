@@ -121,7 +121,7 @@ export default function TakeDetail({ take, onClose, onPractise, onDelete, onReco
         <p className="muted small">No transcript was saved for this take.</p>
       )}
 
-      {detail?.video && <VideoFeedback stats={detail.video} onSeek={media ? seek : undefined} />}
+      {detail?.video && <VideoFeedback stats={detail.video} face={detail.face} onSeek={media ? seek : undefined} />}
 
       {detail?.feedback && (
         <CoachPanel

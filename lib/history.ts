@@ -1,4 +1,5 @@
 import type { Prompt } from "./prompts";
+import type { Framing } from "./face/faceAnalysis";
 import type { Lighting, Movement } from "./videoAnalysis";
 
 /** Summary of one take. Kept small: full transcripts, feedback and video live in IndexedDB (takeStore). */
@@ -23,6 +24,9 @@ export interface Session {
   /** Share of the take with a lot of movement (0–1). */
   highMotionShare?: number;
   lighting?: Lighting;
+  /** Share of the time (with a face in view) spent looking at the camera (0–1). */
+  eyeContactShare?: number;
+  framing?: Framing;
 }
 
 const KEY = "speak-up:history";

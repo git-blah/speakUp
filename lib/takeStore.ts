@@ -1,5 +1,6 @@
 import type { CoachFeedback } from "./coach/types";
 import type { Transcript } from "./transcript";
+import type { FaceStats } from "./face/faceAnalysis";
 import type { VideoStats } from "./videoAnalysis";
 
 /**
@@ -14,6 +15,7 @@ export interface TakeDetail {
   tips?: string[];
   feedback?: CoachFeedback;
   video?: VideoStats;
+  face?: FaceStats;
 }
 
 export interface RecordingInfo {

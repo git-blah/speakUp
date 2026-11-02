@@ -16,6 +16,9 @@ import VideoFeedback from "@/components/VideoFeedback";
 import { useFrameSampler } from "@/lib/useFrameSampler";
 import { describeVideo, useRecorder, type Recording } from "@/lib/useRecorder";
 import { summarizeVideo, type VideoStats } from "@/lib/videoAnalysis";
+import type { FaceLandmarker } from "@mediapipe/tasks-vision";
+import { FRAMING_HINT, framingFor, summarizeFace, type FaceStats, type Framing } from "@/lib/face/faceAnalysis";
+import { detectFace, loadFaceTracker } from "@/lib/face/faceTracker";
 import { speechRecognitionSupported, useSpeechRecognition } from "@/lib/useSpeechRecognition";
 
 type Phase = "setup" | "ready" | "prep" | "speaking" | "review";
@@ -85,6 +88,10 @@ export default function Practice({
   const speech = useSpeechRecognition();
   const sampler = useFrameSampler();
   const [videoStats, setVideoStats] = useState<VideoStats | null>(null);
+  const [faceStats, setFaceStats] = useState<FaceStats | null>(null);
+  const [faceTracker, setFaceTracker] = useState<FaceLandmarker | null>(null);
+  const [faceStatus, setFaceStatus] = useState<"off" | "loading" | "ready" | "error">("off");
+  const [liveFraming, setLiveFraming] = useState<Framing | null>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const playbackRef = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   const speakStartRef = useRef(0);
@@ -130,13 +137,40 @@ export default function Practice({
     setBusy(true);
     const ok = await openStream(settings.camera);
     setBusy(false);
-    if (ok) setPhase("ready");
+    if (!ok) return;
+    setPhase("ready");
+    if (settings.camera && settings.faceTracking && !faceTracker) {
+      setFaceStatus("loading");
+      loadFaceTracker().then(
+        (tracker) => {
+          setFaceTracker(tracker);
+          setFaceStatus("ready");
+        },
+        () => setFaceStatus("error"),
+      );
+    }
   }
+
+  // Live framing check on the ready screen, about twice a second.
+  useEffect(() => {
+    if (phase !== "ready" || !faceTracker || !settings.faceTracking) {
+      setLiveFraming(null);
+      return;
+    }
+    const timer = setInterval(() => {
+      const video = previewRef.current;
+      if (!video) return;
+      const f = detectFace(faceTracker, video, 0);
+      if (f) setLiveFraming(f.present ? framingFor(f.cx!, f.cy!, f.size!) : "absent");
+    }, 500);
+    return () => clearInterval(timer);
+  }, [phase, faceTracker, settings.faceTracking]);
 
   function endSession() {
     takeIdRef.current++;
     sampler.stop();
     setVideoStats(null);
+    setFaceStats(null);
     void stopRecording();
     void speech.stop();
     closeStream();
@@ -151,6 +185,7 @@ export default function Practice({
   function beginPrep(next: Prompt) {
     takeIdRef.current++;
     setVideoStats(null);
+    setFaceStats(null);
     setPrompt(next);
     setTake(null);
     setAnalysis(null);
@@ -181,8 +216,10 @@ export default function Practice({
     }
     // Without server transcription, transcribe live in the browser while recording.
     if (!serverStt) speech.start(settings.language);
-    // Sample the live preview for movement and lighting (video takes only).
-    if (previewRef.current && stream?.getVideoTracks().length) sampler.start(previewRef.current);
+    // Sample the live preview for movement, lighting, framing and eye contact (video takes only).
+    if (previewRef.current && stream?.getVideoTracks().length) {
+      sampler.start(previewRef.current, settings.faceTracking ? faceTracker : null);
+    }
     speakStartRef.current = Date.now();
     setSpeakLeft(settings.speakSeconds);
     setPhase("speaking");
@@ -223,10 +260,13 @@ export default function Practice({
     const id = ++takeIdRef.current;
     const at = new Date().toISOString(); // the take's id across history and IndexedDB
     const seconds = (Date.now() - speakStartRef.current) / 1000;
-    const video = summarizeVideo(sampler.stop());
+    const samples = sampler.stop();
+    const video = summarizeVideo(samples.frames);
+    const face = summarizeFace(samples.faces);
     const [recording, browserTranscript] = await Promise.all([stopRecording(), speech.stop()]);
     if (id !== takeIdRef.current) return;
     setVideoStats(video);
+    setFaceStats(face);
     if (recording && recording.media.size > 0) {
       setTake({ url: URL.createObjectURL(recording.media), type: recording.media.type, seconds });
       if (settings.keepRecordings > 0) void keepRecording(at, recording.media);
@@ -250,12 +290,14 @@ export default function Practice({
           longPauses: result.stats.longPauses,
         }),
         ...(video && { movement: video.movement, highMotionShare: video.highShare, lighting: video.lighting }),
+        ...(face && { eyeContactShare: face.eyeContactShare, framing: face.framing }),
       }),
     );
-    if (result.status === "done" || video) {
+    if (result.status === "done" || video || face) {
       void saveDetail(at, {
         ...(result.status === "done" && { transcript: result.transcript, tips: result.tips }),
         ...(video && { video }),
+        ...(face && { face }),
       }).catch(() => {});
     }
     if (id !== takeIdRef.current) return;
@@ -280,6 +322,9 @@ export default function Practice({
             highMotionShare: video?.highShare ?? null,
             movement: video?.movement ?? null,
             lighting: video?.lighting ?? null,
+            eyeContactShare: face?.eyeContactShare ?? null,
+            lookingDownShare: face?.downShare ?? null,
+            framing: face?.framing ?? null,
           },
         },
       };
@@ -541,6 +586,16 @@ export default function Practice({
             />
             Record video (turn off for audio only)
           </label>
+          {settings.camera && (
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={settings.faceTracking}
+                onChange={(e) => updateSettings({ faceTracking: e.target.checked })}
+              />
+              Check framing and eye contact (face tracking runs in your browser; downloads a ~4 MB model once)
+            </label>
+          )}
 
           <fieldset>
             <legend>Save recordings</legend>
@@ -623,7 +678,19 @@ export default function Practice({
             ) : (
               <div className="preview audio-only">🎙️ Audio only</div>
             )}
-            {phase === "ready" && describeVideo(stream) && <div className="cam-info">{describeVideo(stream)}</div>}
+            {phase === "ready" && describeVideo(stream) && (
+              <div className="cam-info">
+                {describeVideo(stream)}
+                {faceStatus === "loading" && " · loading face tracking…"}
+                {faceStatus === "error" && " · face tracking unavailable"}
+              </div>
+            )}
+            {phase === "ready" && liveFraming && (
+              <div className={`framing-badge ${liveFraming === "good" ? "ok" : ""}`} role="status">
+                {liveFraming === "good" ? "✓ " : ""}
+                {FRAMING_HINT[liveFraming]}
+              </div>
+            )}
 
             {phase === "prep" && (
               <div className="overlay">
@@ -695,7 +762,7 @@ export default function Practice({
 
           {analysis && <Feedback analysis={analysis} onSeek={take ? seekTo : undefined} />}
 
-          {videoStats && <VideoFeedback stats={videoStats} onSeek={take ? seekTo : undefined} />}
+          {videoStats && <VideoFeedback stats={videoStats} face={faceStats} onSeek={take ? seekTo : undefined} />}
 
           {coach && (
             <CoachPanel state={coach} source={coachSource} onRetry={runCoach} onFollowUp={answerFollowUp} />

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { SAMPLE_H, SAMPLE_W, frameSample, summarizeVideo, toGray, videoTips, type FrameSample } from "./videoAnalysis";
+import {
+  SAMPLE_H,
+  SAMPLE_W,
+  frameSample,
+  regionDiff,
+  summarizeVideo,
+  toGray,
+  videoTips,
+  type FrameSample,
+} from "./videoAnalysis";
 
 const N = SAMPLE_W * SAMPLE_H;
 
@@ -104,6 +113,24 @@ describe("summarizeVideo", () => {
     const v = summarizeVideo(run(Array.from({ length: 10 }, () => f)))!;
     expect(v.brightness).toBeGreaterThan(205);
     expect(v.lighting).toBe("backlit");
+  });
+
+  it("uses the tracked face, not the frame centre, to judge backlight", () => {
+    // Dark clothes in the centre against a light wall, but a well-lit face: not backlit.
+    const f = flat(200);
+    for (let y = SAMPLE_H / 4; y < (3 * SAMPLE_H) / 4; y++) {
+      f.fill(60, y * SAMPLE_W + SAMPLE_W / 3, y * SAMPLE_W + (2 * SAMPLE_W) / 3);
+    }
+    const samples = run(Array.from({ length: 10 }, () => f)).map((s) => ({ ...s, faceDiff: 5 }));
+    expect(summarizeVideo(samples)!.lighting).toBe("good");
+    // A face much darker than its surroundings is backlit.
+    const dark = run(Array.from({ length: 10 }, () => flat(150))).map((s) => ({ ...s, faceDiff: -60 }));
+    expect(summarizeVideo(dark)!.lighting).toBe("backlit");
+  });
+
+  it("measures a region against the rest of the frame", () => {
+    // About -100: the box edges round outwards by up to a pixel.
+    expect(regionDiff(centred(0, 50, 150), 0.5, 0.5, 1 / 3, 0.5)).toBeLessThan(-90);
   });
 
   it.each([

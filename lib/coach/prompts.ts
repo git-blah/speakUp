@@ -19,7 +19,7 @@ Guidelines:
 - Language fixes: only genuine grammar or word-choice problems. The speaker uses ${req.language} English, so don't "correct" valid regional usage.
 - Calibrate scores: 5 = adequate, 7 = good, 9-10 = rare and excellent.
 - The better version should sound natural when spoken aloud, not like an essay.
-- If on-camera stats are given, mention body language only when they show a clear problem (lots of movement, a moving camera, poor lighting). They're rough automatic measures; hand gestures also count as movement.`;
+- If on-camera stats are given, mention body language only when they show a clear problem (lots of movement, a moving camera, poor lighting, little eye contact, poor framing). They're rough automatic measures; hand gestures also count as movement.`;
 
   const s = req.stats;
   const statLines = [
@@ -30,6 +30,9 @@ Guidelines:
     s.startDelay !== null && `Seconds before first word: ${s.startDelay}`,
     s.movement && `On-camera movement: ${s.movement}${s.highMotionShare != null ? ` (a lot of movement ${Math.round(s.highMotionShare * 100)}% of the time)` : ""}`,
     s.lighting && `Video lighting: ${s.lighting}`,
+    s.eyeContactShare != null &&
+      `Looking at the camera: ${Math.round(s.eyeContactShare * 100)}% of the time${s.lookingDownShare != null ? ` (looking down ${Math.round(s.lookingDownShare * 100)}%)` : ""}`,
+    s.framing && `Framing: ${s.framing}`,
   ].filter(Boolean);
 
   const user = `Prompt type: ${req.mode}. ${MODE_NOTES[req.mode] ?? ""}

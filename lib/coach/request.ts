@@ -5,6 +5,7 @@ import { InvalidReplyError, type CoachRequestBase, type FeedbackRequest } from "
 const MODES = new Set(["word", "topic", "situation", "explain", "speech"]);
 const MOVEMENTS = new Set(["still", "natural", "busy", "shaky"]);
 const LIGHTINGS = new Set(["good", "dark", "bright", "backlit", "covered"]);
+const FRAMINGS = new Set(["good", "left", "right", "high", "low", "close", "far", "absent"]);
 
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -43,6 +44,9 @@ export function parseFeedback(body: unknown): FeedbackRequest {
       highMotionShare: num(s.highMotionShare),
       movement: typeof s.movement === "string" && MOVEMENTS.has(s.movement) ? s.movement : null,
       lighting: typeof s.lighting === "string" && LIGHTINGS.has(s.lighting) ? s.lighting : null,
+      eyeContactShare: num(s.eyeContactShare),
+      lookingDownShare: num(s.lookingDownShare),
+      framing: typeof s.framing === "string" && FRAMINGS.has(s.framing) ? s.framing : null,
     },
   };
 }
